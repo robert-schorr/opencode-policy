@@ -41,17 +41,17 @@
   },
   {
     "id": "var-access-1",
-    "pattern": "\\$\\{?\\w*[Kk][Ee][Yy]\\w*\\}?",
+    "pattern": "\\$\\{?(?:[A-Z][A-Z0-9_]*(?:API_KEY|PASSWORD)[A-Z0-9_]*|GOOGLE_APPLICATION_CREDENTIALS)\\}?",
     "reason": "BLOCKED: Attempted key variable access"
   },
   {
     "id": "var-access-2",
-    "pattern": "\\$\\{?[A-Z_]*TOKEN[A-Z_]*\\}?",
+    "pattern": "\\$\\{?[A-Z0-9_]*TOKEN[A-Z0-9_]*\\}?",
     "reason": "BLOCKED: Attempted token variable access"
   },
   {
     "id": "var-access-3",
-    "pattern": "\\$\\{?[A-Z_]*SECRET[A-Z_]*\\}?",
+    "pattern": "\\$\\{?[A-Z0-9_]*SECRET[A-Z0-9_]*\\}?",
     "reason": "BLOCKED: Attempted secret variable access"
   },
   {
@@ -386,19 +386,10 @@
     "reason": "BLOCKED: Reading zsh history"
   },
   {
-    "id": "python-env-1",
-    "pattern": "os\\.environ",
-    "reason": "BLOCKED: Python env access"
-  },
-  {
-    "id": "python-env-2",
-    "pattern": "os\\.getenv",
-    "reason": "BLOCKED: Python env access"
-  },
-  {
     "id": "python-subprocess-env",
-    "pattern": "subprocess.*env",
-    "reason": "BLOCKED: Subprocess with env"
+    "pattern": "subprocess[\\s\\S]*(?:TOKEN|SECRET|PASSWORD|API_KEY|GOOGLE_APPLICATION_CREDENTIALS)",
+    "flags": "i",
+    "reason": "BLOCKED: Subprocess receives secret environment data"
   },
   {
     "id": "python-import-environ",
@@ -868,9 +859,9 @@
   },
   {
     "id": "bypass-brace-cmd",
-    "pattern": "\\{[a-z]+,[^}]+\\}",
+    "pattern": "\\{(?:cat|less|more|head|tail|grep|cp|mv|rm),[^}]*\\/(?:etc|root|proc|run|home|Users|private)",
     "flags": "i",
-    "reason": "BLOCKED: Brace expansion command bypass"
+    "reason": "BLOCKED: Brace expansion targeting sensitive paths"
   },
   {
     "id": "bypass-dev-tcp",
@@ -915,20 +906,14 @@
     "admin_bypass": true
   },
   {
-    "id": "bypass-dollar-paren",
-    "pattern": "\\$\\([^)]+\\)",
-    "reason": "BLOCKED: $() command substitution",
-    "admin_bypass": true
-  },
-  {
     "id": "bypass-wildcard-path",
     "pattern": "\\/\\?{3,}\\/",
     "reason": "BLOCKED: Wildcard path traversal"
   },
   {
     "id": "bypass-tr-transform",
-    "pattern": "\\btr\\s+['\"][^'\"]+['\"]\\s+['\"][^'\"]+['\"]",
-    "reason": "BLOCKED: tr character transformation (filter bypass)",
+    "pattern": "\\btr\\s+['\"][^'\"]+['\"]\\s+['\"][^'\"]+['\"]\\s*\\|\\s*(?:ba)?sh",
+    "reason": "BLOCKED: tr transformation piped to shell",
     "admin_bypass": true
   },
   {
@@ -1062,11 +1047,6 @@
     "id": "ld-library-path",
     "pattern": "LD_LIBRARY_PATH",
     "reason": "BLOCKED: LD_LIBRARY_PATH manipulation"
-  },
-  {
-    "id": "pythonpath",
-    "pattern": "PYTHONPATH",
-    "reason": "BLOCKED: PYTHONPATH manipulation"
   },
   {
     "id": "node-path",
@@ -1246,8 +1226,9 @@
   },
   {
     "id": "compile-builtin",
-    "pattern": "\\bcompile\\s*\\(",
-    "reason": "BLOCKED: compile() call"
+    "pattern": "\\bcompile\\s*\\([\\s\\S]*\\b(?:exec|eval)\\s*\\(",
+    "flags": "i",
+    "reason": "BLOCKED: compile() combined with dynamic execution"
   },
   {
     "id": "builtins-access",
@@ -1262,7 +1243,7 @@
   },
   {
     "id": "chr-ord-decode",
-    "pattern": "chr\\s*\\(\\s*\\d+\\s*\\)",
+    "pattern": "chr\\s*\\(\\s*\\d+\\s*\\).*chr\\s*\\(\\s*\\d+\\s*\\).*chr\\s*\\(\\s*\\d+\\s*\\)",
     "reason": "BLOCKED: chr() character building",
     "admin_bypass": true
   },
@@ -1311,18 +1292,6 @@
     "pattern": "python.*base64.*decode",
     "flags": "i",
     "reason": "BLOCKED: Python base64 decode in command",
-    "admin_bypass": true
-  },
-  {
-    "id": "shell-var-expansion",
-    "pattern": "\\$\\{.*\\}",
-    "reason": "BLOCKED: Shell variable expansion",
-    "admin_bypass": true
-  },
-  {
-    "id": "env-var-ref",
-    "pattern": "\\$[A-Z_]+",
-    "reason": "BLOCKED: Environment variable reference",
     "admin_bypass": true
   },
   {

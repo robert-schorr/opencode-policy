@@ -14,7 +14,7 @@ const cases = {
   "env-direct-7": "compgen -v",
   "proc-environ-1": "/proc/123/environ",
   "proc-environ-2": "/proc/self/environ",
-  "var-access-1": "${MONKEY}",
+  "var-access-1": "${SERVICE_API_KEY}",
   "var-access-2": "${ACCESS_TOKEN}",
   "var-access-3": "${APP_SECRET}",
   "echo-secret": "echo $PASSWORD",
@@ -76,9 +76,7 @@ const cases = {
   "history-1": "history",
   "history-2": ".bash_history",
   "history-3": ".zsh_history",
-  "python-env-1": "os.environ",
-  "python-env-2": "os.getenv",
-  "python-subprocess-env": "subprocess env",
+  "python-subprocess-env": "subprocess env TOKEN",
   "dotenv-1": "dotenv",
   "dotenv-2": "load_dotenv",
   "python-import-environ": "from os import environ",
@@ -173,9 +171,8 @@ const cases = {
   "bypass-var-substring": "${HOME:0:1}",
   "bypass-var-replace": "${HOME//a/b}",
   "bypass-backtick-cmd": "`whoami`",
-  "bypass-dollar-paren": "$(whoami)",
   "bypass-wildcard-path": "/???/",
-  "bypass-tr-transform": "tr 'a' 'b'",
+  "bypass-tr-transform": "tr 'a' 'b' | sh",
   "bypass-xxd-reverse": "xxd -r",
   "bypass-nohup": "nohup sleep 1",
   "bypass-disown": "disown",
@@ -203,7 +200,6 @@ const cases = {
   "git-hooks": ".git/hooks/pre-commit",
   "ld-preload": "LD_PRELOAD",
   "ld-library-path": "LD_LIBRARY_PATH",
-  "pythonpath": "PYTHONPATH",
   "node-path": "NODE_PATH",
   "interactsh": "interactsh",
   "oastify": "oastify.com",
@@ -237,11 +233,11 @@ const cases = {
   "importlib-import": "importlib.import_module",
   "getattr-module": "getattr(x, \"y\")",
   "exec-builtin": "exec(",
-  "compile-builtin": "compile(",
+  "compile-builtin": "compile(source); eval(code)",
   "builtins-access": "__builtins__",
   "reversed-builtin": "reversed(items)",
   "join-reverse-pattern": "''.join(items)[::-1]",
-  "chr-ord-decode": "chr(65)",
+  "chr-ord-decode": "chr(65) + chr(66) + chr(67)",
   "bytes-decode": "bytes([65]).decode",
   "base64-decode-exec-1": "base64.b64decode(data) exec code",
   "base64-decode-exec-2": "atob(data); eval(code)",
@@ -252,8 +248,6 @@ const cases = {
   "python-base64-decode-eval": "python -c 'import base64; base64.decodebytes(b\"QQ==\")'",
   "echo-base64-pipe-decode": "echo hi | base64 -d",
   "base64-pipe-2": "cat blob | base64",
-  "shell-var-expansion": "${HOME}",
-  "env-var-ref": "$HOME",
   "workspace-root-ls": "ls ../",
   "workspace-root-direct": "ls /workspace",
   "shared-dir-access": "/_shared/GLOBAL",
@@ -286,4 +280,17 @@ test("The plugin does not block regular files", async () => {
     plugin["tool.execute.before"]({}, { args: { filePath: "tmp/plain.txt", command: "ls tmp/plain.txt" } }),
     "The plugin wrongly blocks regular files",
   )
+})
+
+test("The matcher allows ordinary shell variables and command substitution", () => {
+  assert.equal(protect("echo $HOME ${PROJECT_ROOT} $(pwd)"), null)
+  assert.equal(protect("PYTHONPATH=src python -m package"), null)
+  assert.equal(protect("tr 'a' 'b'"), null)
+})
+
+test("The matcher still blocks targeted secret variable access", () => {
+  assert.equal(protect("echo $SERVICE_TOKEN")?.id, "var-access-2")
+  assert.equal(protect("echo ${APP_SECRET}")?.id, "var-access-3")
+  assert.equal(protect("echo $SERVICE_API_KEY")?.id, "var-access-1")
+  assert.equal(protect("echo $GOOGLE_APPLICATION_CREDENTIALS")?.id, "var-access-1")
 })
