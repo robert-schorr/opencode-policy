@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { OpencodePolicy } from "../src/opencode-policy.js"
-import { protect, unsafe } from "../src/opencode-policy-rules.js"
+import { protect, protectCommand, protectPath, unsafe } from "../src/opencode-policy-rules.js"
 
 const cases = {
   "env-direct-1": "env",
@@ -64,7 +64,7 @@ const cases = {
   "seq-huge": "seq 1234567890",
   "brace-huge": "{1..12345678}",
   "fork-bomb-1": "(){ |",
-  "fork-bomb-2": "a & & b & &",
+  "fork-bomb-2": "a & b & c",
   "fork-bomb-3": "for x in a; do run & done",
   "fork-bomb-4": "while true; do run & done",
   "sleep-long": "sleep 1234",
@@ -244,7 +244,7 @@ const cases = {
   "base64-decode-exec-3": "b64decode(data) exec code",
   "base64-import-os": "aW1wb3J0IG9z",
   "base64-proc-secrets": "L3J1bi9zZWNyZXRz",
-  "base64-long-string": "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0MTIzNDU2Nzg5MDEyMzQ1",
+  "base64-long-string": "payload QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0MTIzNDU2Nzg5MDEyMzQ1",
   "python-base64-decode-eval": "python -c 'import base64; base64.decodebytes(b\"QQ==\")'",
   "echo-base64-pipe-decode": "echo hi | base64 -d",
   "base64-pipe-2": "cat blob | base64",
@@ -280,6 +280,41 @@ test("The plugin does not block regular files", async () => {
     plugin["tool.execute.before"]({}, { args: { filePath: "tmp/plain.txt", command: "ls tmp/plain.txt" } }),
     "The plugin wrongly blocks regular files",
   )
+})
+
+test("The plugin does not treat paths and metadata as shell commands", async () => {
+  const plugin = await OpencodePolicy()
+  await assert.doesNotReject(
+    plugin["tool.execute.before"]({}, {
+      args: {
+        filePath: "env/dev/main",
+        text: "check app-env and https://example.com/QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0MTIzNDU2Nzg5MDEyMzQ1",
+        prompt: "ordinary URL and Git SHA 0123456789abcdef0123456789abcdef01234567",
+        query: "search for env/dev/main",
+        command: "git status && git diff",
+      },
+    }),
+    "The plugin wrongly blocks safe paths, metadata, or chained read-only checks",
+  )
+})
+
+test("The command matcher detects environment inspection but not path names", () => {
+  assert.equal(protectCommand("env")?.id, "env-direct-1")
+  assert.equal(protectCommand("git status && git diff"), null)
+  assert.equal(protectCommand("ls env/dev/main"), null)
+  assert.equal(protectPath("env/dev/main"), null)
+  assert.equal(protectPath("/proc/self/environ")?.id, "proc-environ-2")
+})
+
+test("The command matcher distinguishes background ampersands from &&", () => {
+  assert.equal(protectCommand("a & b & c")?.id, "fork-bomb-2")
+  assert.equal(protectCommand("git status && git diff"), null)
+})
+
+test("The long base64 rule requires payload context", () => {
+  const value = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0MTIzNDU2Nzg5MDEyMzQ1"
+  assert.equal(protectCommand(value), null)
+  assert.equal(protectCommand(`payload ${value}`)?.id, "base64-long-string")
 })
 
 test("The matcher allows ordinary shell variables and command substitution", () => {

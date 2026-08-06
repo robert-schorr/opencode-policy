@@ -14,6 +14,9 @@ const match = (rules, value) => {
 }
 
 const protect = (file) => match(unsafe, file)
+const hasScope = (rule, scope) => Array.isArray(rule.scope) ? rule.scope.includes(scope) : rule.scope === scope || (scope === "command" && !rule.scope)
+const protectCommand = (command) => match(unsafe.filter((rule) => hasScope(rule, "command")), command)
+const protectPath = (path) => match(unsafe.filter((rule) => hasScope(rule, "path")), path)
 const inject = (text) => match(injections, text)
 
-export { inject, injections, protect, unsafe }
+export { inject, injections, protect, protectCommand, protectPath, unsafe }

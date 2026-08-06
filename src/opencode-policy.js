@@ -1,7 +1,6 @@
 import { appendFileSync } from "node:fs"
 
-import { protect } from "./opencode-policy-rules.js"
-import { inject } from "./opencode-policy-rules.js"
+import { inject, protectCommand, protectPath } from "./opencode-policy-rules.js"
 
 const preview = (value) => String(value ?? "").slice(0, 200)
 const file = new URL("../opencode-policy.log", import.meta.url)
@@ -46,22 +45,16 @@ const unsafeToolPatterns = async (client, input, output) => {
     prompt: preview(output?.args?.prompt),
     query: preview(output?.args?.query),
   })
-  const rule = protect(path)
-  if (rule) {
+  const pathRule = protectPath(path)
+  if (pathRule) {
     await record(client, "warn", "unsafe tool pattern matched", {
-      id: preview(rule.id),
-      reason: preview(rule.reason),
+      id: preview(pathRule.id),
+      reason: preview(pathRule.reason),
       filePath: preview(path),
     })
-    deny(rule.reason)
+    deny(pathRule.reason)
   }
-  const values = [
-    String(input?.tool ?? ""),
-    String(output?.args?.text ?? ""),
-    String(output?.args?.prompt ?? ""),
-    String(output?.args?.query ?? ""),
-    String(output?.args?.command ?? ""),
-  ]
+  const command = String(output?.args?.command ?? "")
   await record(client, "debug", "tool.execute.before.scan", {
     tool: preview(input?.tool),
     argsText: preview(output?.args?.text),
@@ -69,16 +62,21 @@ const unsafeToolPatterns = async (client, input, output) => {
     argsQuery: preview(output?.args?.query),
     argsCommand: preview(output?.args?.command),
   })
+  const commandRule = protectCommand(command)
+  if (commandRule) {
+    await record(client, "warn", "unsafe tool pattern matched", {
+      id: preview(commandRule.id),
+      reason: preview(commandRule.reason),
+      value: preview(command),
+    })
+    deny(commandRule.reason)
+  }
+  const values = [
+    String(output?.args?.text ?? ""),
+    String(output?.args?.prompt ?? ""),
+    String(output?.args?.query ?? ""),
+  ]
   for (const value of values) {
-    const rule = protect(value)
-    if (rule) {
-      await record(client, "warn", "unsafe tool pattern matched", {
-        id: preview(rule.id),
-        reason: preview(rule.reason),
-        value: preview(value),
-      })
-      deny(rule.reason)
-    }
     const injection = inject(value)
     if (injection) {
       await record(client, "warn", "prompt injection matched", {

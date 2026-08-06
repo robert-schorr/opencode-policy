@@ -32,11 +32,13 @@
   {
     "id": "proc-environ-1",
     "pattern": "\\/proc\\/\\d+\\/environ",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: Reads process environment"
   },
   {
     "id": "proc-environ-2",
     "pattern": "\\/proc\\/self\\/environ",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: Reads own environment"
   },
   {
@@ -63,11 +65,13 @@
   {
     "id": "docker-secrets-2",
     "pattern": "\\/var\\/run\\/secrets",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: Cannot access secrets"
   },
   {
     "id": "docker-secrets-1",
     "pattern": "\\/run\\/secrets",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: Cannot access Docker Secrets"
   },
   {
@@ -79,8 +83,7 @@
     "id": "echo-base64-pipe-decode",
     "pattern": "echo.*\\|.*base64\\s+(-d|--decode)",
     "flags": "i",
-    "reason": "BLOCKED: echo base64 | decode pattern",
-    "admin_bypass": true
+    "reason": "BLOCKED: echo base64 | decode pattern"
   },
   {
     "id": "base64-exfil-1",
@@ -321,7 +324,7 @@
   },
   {
     "id": "fork-bomb-2",
-    "pattern": "&\\s*&\\s*.*&\\s*&",
+    "pattern": "(?<!&)&(?=\\s*[^&\\s])[\\s\\S]*?(?<!&)&(?=\\s*[^&\\s])",
     "reason": "BLOCKED: Multiple background forks"
   },
   {
@@ -343,7 +346,7 @@
   },
   {
     "id": "background-many",
-    "pattern": "(\\s*&\\s*){3,}",
+    "pattern": "(?:(?<!&)&(?!&)\\s*){3,}",
     "reason": "BLOCKED: Too many background processes"
   },
   {
@@ -378,11 +381,13 @@
   {
     "id": "history-2",
     "pattern": "\\.bash_history",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: Reading bash history"
   },
   {
     "id": "history-3",
     "pattern": "\\.zsh_history",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: Reading zsh history"
   },
   {
@@ -418,7 +423,7 @@
   },
   {
     "id": "env-direct-1",
-    "pattern": "\\benv\\b(?!\\s*=)",
+    "pattern": "(?:^|(?:&&|\\|\\||[;|&]|\\n)\\s*)(?:(?:sudo|command|exec)\\s+)?env(?:\\s|$)",
     "reason": "BLOCKED: Leaks all environment variables including API keys"
   },
   {
@@ -516,14 +521,12 @@
   {
     "id": "curl-post-1",
     "pattern": "\\bcurl\\s+.*(-d|--data|--data-raw|--data-binary)\\s",
-    "reason": "BLOCKED: curl with POST data (potential exfiltration)",
-    "admin_bypass": true
+    "reason": "BLOCKED: curl with POST data (potential exfiltration)"
   },
   {
     "id": "curl-form",
     "pattern": "\\bcurl\\s+.*-F\\s",
-    "reason": "BLOCKED: curl with form upload",
-    "admin_bypass": true
+    "reason": "BLOCKED: curl with form upload"
   },
   {
     "id": "curl-upload-1",
@@ -538,14 +541,12 @@
   {
     "id": "curl-post-2",
     "pattern": "\\bcurl\\s+.*-X\\s*POST",
-    "reason": "BLOCKED: curl POST request",
-    "admin_bypass": true
+    "reason": "BLOCKED: curl POST request"
   },
   {
     "id": "curl-put",
     "pattern": "\\bcurl\\s+.*-X\\s*PUT",
-    "reason": "BLOCKED: curl PUT request",
-    "admin_bypass": true
+    "reason": "BLOCKED: curl PUT request"
   },
   {
     "id": "wget-post-1",
@@ -635,6 +636,7 @@
   {
     "id": "docker-socket",
     "pattern": "\\/var\\/run\\/docker\\.sock",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: Docker socket access"
   },
   {
@@ -765,15 +767,13 @@
     "id": "load-test",
     "pattern": "load.*test",
     "flags": "i",
-    "reason": "BLOCKED: load test",
-    "admin_bypass": true
+    "reason": "BLOCKED: load test"
   },
   {
     "id": "benchmark",
     "pattern": "benchmark",
     "flags": "i",
-    "reason": "BLOCKED: benchmark",
-    "admin_bypass": true
+    "reason": "BLOCKED: benchmark"
   },
   {
     "id": "urandom-bzip",
@@ -902,8 +902,7 @@
   {
     "id": "bypass-backtick-cmd",
     "pattern": "`[^`]+`",
-    "reason": "BLOCKED: Backtick command substitution",
-    "admin_bypass": true
+    "reason": "BLOCKED: Backtick command substitution"
   },
   {
     "id": "bypass-wildcard-path",
@@ -913,8 +912,7 @@
   {
     "id": "bypass-tr-transform",
     "pattern": "\\btr\\s+['\"][^'\"]+['\"]\\s+['\"][^'\"]+['\"]\\s*\\|\\s*(?:ba)?sh",
-    "reason": "BLOCKED: tr transformation piped to shell",
-    "admin_bypass": true
+    "reason": "BLOCKED: tr transformation piped to shell"
   },
   {
     "id": "bypass-nohup",
@@ -1008,8 +1006,7 @@
   {
     "id": "awk-system",
     "pattern": "\\bawk\\b.*system\\s*\\(",
-    "reason": "BLOCKED: awk with system() call",
-    "admin_bypass": true
+    "reason": "BLOCKED: awk with system() call"
   },
   {
     "id": "sed-exec",
@@ -1019,14 +1016,12 @@
   {
     "id": "find-exec",
     "pattern": "\\bfind\\b.*-exec",
-    "reason": "BLOCKED: find with exec",
-    "admin_bypass": true
+    "reason": "BLOCKED: find with exec"
   },
   {
     "id": "xargs-exec",
     "pattern": "\\bxargs\\b.*sh\\b",
-    "reason": "BLOCKED: xargs with shell",
-    "admin_bypass": true
+    "reason": "BLOCKED: xargs with shell"
   },
   {
     "id": "tar-checkpoint",
@@ -1036,6 +1031,7 @@
   {
     "id": "git-hooks",
     "pattern": "\\.git\\/hooks",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: Git hooks modification"
   },
   {
@@ -1117,21 +1113,25 @@
   {
     "id": "proc-fd",
     "pattern": "\\/proc\\/\\d+\\/fd",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: /proc/*/fd access"
   },
   {
     "id": "proc-exe",
     "pattern": "\\/proc\\/\\d+\\/exe",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: /proc/*/exe access"
   },
   {
     "id": "proc-cmdline",
     "pattern": "\\/proc\\/\\d+\\/cmdline",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: /proc/*/cmdline access"
   },
   {
     "id": "proc-maps",
     "pattern": "\\/proc\\/\\d+\\/maps",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: /proc/*/maps access"
   },
   {
@@ -1192,11 +1192,13 @@
   {
     "id": "cgroup-escape",
     "pattern": "\\/sys\\/fs\\/cgroup.*release_agent",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: cgroup release_agent escape"
   },
   {
     "id": "cgroup-notify",
     "pattern": "\\/sys\\/fs\\/cgroup.*notify_on_release",
+    "scope": ["path", "command"],
     "reason": "BLOCKED: cgroup notify escape"
   },
   {
@@ -1238,20 +1240,17 @@
   {
     "id": "reversed-builtin",
     "pattern": "\\breversed\\s*\\(",
-    "reason": "BLOCKED: reversed() for obfuscation",
-    "admin_bypass": true
+    "reason": "BLOCKED: reversed() for obfuscation"
   },
   {
     "id": "chr-ord-decode",
     "pattern": "chr\\s*\\(\\s*\\d+\\s*\\).*chr\\s*\\(\\s*\\d+\\s*\\).*chr\\s*\\(\\s*\\d+\\s*\\)",
-    "reason": "BLOCKED: chr() character building",
-    "admin_bypass": true
+    "reason": "BLOCKED: chr() character building"
   },
   {
     "id": "bytes-decode",
     "pattern": "bytes\\s*\\(\\s*\\[.*\\]\\s*\\)\\.decode",
-    "reason": "BLOCKED: bytes array decoding",
-    "admin_bypass": true
+    "reason": "BLOCKED: bytes array decoding"
   },
   {
     "id": "base64-decode-exec-1",
@@ -1283,16 +1282,14 @@
   },
   {
     "id": "base64-long-string",
-    "pattern": "\\b[A-Za-z0-9+/]{40,}={0,2}\\b",
-    "reason": "BLOCKED: Long base64 string (potential obfuscated payload)",
-    "admin_bypass": true
+    "pattern": "(?:\\b(?:base64|b64decode|atob|decode(?:d)?|encoded?|payload)\\b[^\\n]{0,80}[A-Za-z0-9+/]{40,}={0,2}|[A-Za-z0-9+/]{40,}={0,2}[^\\n]{0,80}\\b(?:base64|b64decode|atob|decode(?:d)?|encoded?|payload)\\b)",
+    "reason": "BLOCKED: Long base64 string (potential obfuscated payload)"
   },
   {
     "id": "python-base64-decode-eval",
     "pattern": "python.*base64.*decode",
     "flags": "i",
-    "reason": "BLOCKED: Python base64 decode in command",
-    "admin_bypass": true
+    "reason": "BLOCKED: Python base64 decode in command"
   },
   {
     "id": "workspace-root-direct",
