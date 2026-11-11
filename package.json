@@ -15,6 +15,9 @@
   "scripts": {
     "test": "node --test"
   },
+  "dependencies": {
+    "@opencode/plugin": "2.2.7"
+  },
   "keywords": [
     "opencode",
     "opencode-plugin",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { OpencodePolicy } from "../src/opencode-policy.js"
+import OpencodePolicy, { createPolicyHooks } from "../src/opencode-policy.js"
 import { protect, protectCommand, protectPath, unsafe } from "../src/opencode-policy-rules.js"
 
 const cases = {
@@ -260,6 +260,24 @@ test("The unsafe tool patterns cases do match the unsafe tool rules list", async
   assert.deepEqual(Object.keys(cases).sort(), unsafe.map((rule) => rule.id).sort(), "The unsafe tool pattern test cases unexpectedly drift from the unsafe tool rules list")
 })
 
+test("The plugin exports a V2 definition and registers its hooks", async () => {
+  const registered = new Map()
+  const ctx = {
+    tool: {
+      hook: async (name, callback) => registered.set(`tool.${name}`, callback),
+    },
+    session: {
+      hook: async (name, callback) => registered.set(`session.${name}`, callback),
+    },
+  }
+
+  assert.equal(OpencodePolicy.id, "opencode-policy")
+  assert.equal(typeof OpencodePolicy.setup, "function")
+  await OpencodePolicy.setup(ctx)
+
+  assert.deepEqual([...registered.keys()].sort(), ["session.context", "tool.execute.before"])
+})
+
 for (const rule of unsafe) {
   test(`The unsafe tool matcher does detect ${rule.id}`, async () => {
     assert.equal(protect(cases[rule.id])?.id, rule.id, `The unsafe tool matcher unexpectedly misses ${rule.id}`)
@@ -267,26 +285,27 @@ for (const rule of unsafe) {
 }
 
 test("The plugin cannot allow unsafe tool command arguments", async () => {
-  const plugin = await OpencodePolicy()
+  const plugin = createPolicyHooks(async () => {})
   await assert.rejects(
-    plugin["tool.execute.before"]({}, { args: { command: "printenv" } }),
+    plugin.toolExecuteBefore({ tool: "bash", input: { command: "printenv" } }),
     "The plugin wrongly allows unsafe tool command arguments",
   )
 })
 
 test("The plugin does not block regular files", async () => {
-  const plugin = await OpencodePolicy()
+  const plugin = createPolicyHooks(async () => {})
   await assert.doesNotReject(
-    plugin["tool.execute.before"]({}, { args: { filePath: "tmp/plain.txt", command: "ls tmp/plain.txt" } }),
+    plugin.toolExecuteBefore({ tool: "read", input: { filePath: "tmp/plain.txt", command: "ls tmp/plain.txt" } }),
     "The plugin wrongly blocks regular files",
   )
 })
 
 test("The plugin does not treat paths and metadata as shell commands", async () => {
-  const plugin = await OpencodePolicy()
+  const plugin = createPolicyHooks(async () => {})
   await assert.doesNotReject(
-    plugin["tool.execute.before"]({}, {
-      args: {
+    plugin.toolExecuteBefore({
+      tool: "bash",
+      input: {
         filePath: "env/dev/main",
         text: "check app-env and https://example.com/QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0MTIzNDU2Nzg5MDEyMzQ1",
         prompt: "ordinary URL and Git SHA 0123456789abcdef0123456789abcdef01234567",

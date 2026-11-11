@@ -1,4 +1,5 @@
 import { appendFileSync } from "node:fs"
+import { Plugin } from "@opencode/plugin"
 
 import { inject, protectCommand, protectPath } from "./opencode-policy-rules.js"
 
@@ -12,7 +13,7 @@ const deny = (reason) => {
   throw error
 }
 
-const record = async (client, level, message, extra) => {
+const record = async (level, message, extra) => {
   const body = {
     service: "opencode-policy",
     level,
@@ -22,49 +23,37 @@ const record = async (client, level, message, extra) => {
   appendFileSync(file, `${JSON.stringify({ time: new Date().toISOString(), ...body })}\n`, "utf8")
 }
 
-const parts = (part) => {
-  return [
-    String(part?.text ?? ""),
-    String(part?.prompt ?? ""),
-    String(part?.command ?? ""),
-    String(part?.source?.value ?? ""),
-  ]
-}
-
-const listed = (list) => {
-  return list.flatMap((part) => parts(part))
-}
-
-const unsafeToolPatterns = async (client, input, output) => {
-  const path = String(output?.args?.filePath ?? "")
-  await record(client, "debug", "tool.execute.before", {
-    tool: preview(input?.tool),
-    filePath: preview(output?.args?.filePath),
-    command: preview(output?.args?.command),
-    text: preview(output?.args?.text),
-    prompt: preview(output?.args?.prompt),
-    query: preview(output?.args?.query),
+const unsafeToolPatterns = async (event, log) => {
+  const input = event?.input ?? {}
+  const path = String(input.filePath ?? "")
+  await log("debug", "tool.execute.before", {
+    tool: preview(event?.tool),
+    filePath: preview(input.filePath),
+    command: preview(input.command),
+    text: preview(input.text),
+    prompt: preview(input.prompt),
+    query: preview(input.query),
   })
   const pathRule = protectPath(path)
   if (pathRule) {
-    await record(client, "warn", "unsafe tool pattern matched", {
+    await log("warn", "unsafe tool pattern matched", {
       id: preview(pathRule.id),
       reason: preview(pathRule.reason),
       filePath: preview(path),
     })
     deny(pathRule.reason)
   }
-  const command = String(output?.args?.command ?? "")
-  await record(client, "debug", "tool.execute.before.scan", {
-    tool: preview(input?.tool),
-    argsText: preview(output?.args?.text),
-    argsPrompt: preview(output?.args?.prompt),
-    argsQuery: preview(output?.args?.query),
-    argsCommand: preview(output?.args?.command),
+  const command = String(input.command ?? "")
+  await log("debug", "tool.execute.before.scan", {
+    tool: preview(event?.tool),
+    argsText: preview(input.text),
+    argsPrompt: preview(input.prompt),
+    argsQuery: preview(input.query),
+    argsCommand: preview(input.command),
   })
   const commandRule = protectCommand(command)
   if (commandRule) {
-    await record(client, "warn", "unsafe tool pattern matched", {
+    await log("warn", "unsafe tool pattern matched", {
       id: preview(commandRule.id),
       reason: preview(commandRule.reason),
       value: preview(command),
@@ -72,14 +61,14 @@ const unsafeToolPatterns = async (client, input, output) => {
     deny(commandRule.reason)
   }
   const values = [
-    String(output?.args?.text ?? ""),
-    String(output?.args?.prompt ?? ""),
-    String(output?.args?.query ?? ""),
+    String(input.text ?? ""),
+    String(input.prompt ?? ""),
+    String(input.query ?? ""),
   ]
   for (const value of values) {
     const injection = inject(value)
     if (injection) {
-      await record(client, "warn", "prompt injection matched", {
+      await log("warn", "prompt injection matched", {
         id: preview(injection.id),
         reason: preview(injection.reason),
         value: preview(value),
@@ -89,39 +78,42 @@ const unsafeToolPatterns = async (client, input, output) => {
   }
 }
 
-const promptInjectionPatterns = async (client, _input, output) => {
-  for (const message of output?.messages ?? []) {
-    if (message?.info?.role !== "user") {
+const promptInjectionPatterns = async (event, log) => {
+  for (const message of event?.messages ?? []) {
+    if (message?.role !== "user") {
       continue
     }
-    const values = listed(Array.isArray(message?.parts) ? message.parts : [])
+    const values = (Array.isArray(message?.content) ? message.content : [])
+      .filter((part) => part?.type === "text")
+      .map((part) => String(part.text ?? ""))
     for (const value of values) {
       const injection = inject(value)
       if (!injection) {
         continue
       }
-      await record(client, "warn", "prompt injection matched", {
+      await log("warn", "prompt injection matched", {
         id: preview(injection.id),
         reason: preview(injection.reason),
         value: preview(value),
       })
-      message.parts = [{ type: "text", text: refusal }]
+      message.content = [{ type: "text", text: refusal }]
       break
     }
   }
 }
 
-/**
- * OpenCode plugin with extensible unsafe tool patterns
- *
- * Usage:
- * Add the package name to the `plugin` array in `opencode.json`
- */
-export const OpencodePolicy = async ({ client } = {}) => {
-  return {
-    "experimental.chat.messages.transform": async (input, output) => promptInjectionPatterns(client, input, output),
-    "tool.execute.before": async (input, output) => unsafeToolPatterns(client, input, output),
-  }
+export const createPolicyHooks = (log = record) => ({
+  toolExecuteBefore: (event) => unsafeToolPatterns(event, log),
+  sessionContext: (event) => promptInjectionPatterns(event, log),
+})
+
+const setup = async (ctx) => {
+  const hooks = createPolicyHooks()
+  await ctx.tool.hook("execute.before", hooks.toolExecuteBefore)
+  await ctx.session.hook("context", hooks.sessionContext)
 }
 
-export default OpencodePolicy
+export default Plugin.define({
+  id: "opencode-policy",
+  setup,
+})

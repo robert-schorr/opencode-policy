@@ -12,12 +12,12 @@ Unsafe tool patterns
 ![Prompt injection patterns](./assets/prompt-injection-patterns.gif)
 Prompt injection patterns
 
-Use it when you want stronger workspace safety out of the box: it helps prevent secret exposure, exfiltration, unsafe shell execution, reverse shells, denial-of-service commands, cross-workspace access, and common instruction-override attacks. Matching events are logged to `.opencode/opencode-policy.log` for review.
+Use it when you want stronger workspace safety out of the box: it helps prevent secret exposure, exfiltration, unsafe shell execution, reverse shells, denial-of-service commands, cross-workspace access, and common instruction-override attacks. Matching events are logged to `opencode-policy.log` beside the plugin package for review. The log may contain previews of tool input values.
 
 ## Simple install
 
 ```bash
-opencode plugin opencode-policy@latest --global
+opencode plugin add opencode-policy@latest
 ```
 
 ## Install from npm
@@ -36,7 +36,7 @@ Then add it to one of these OpenCode config files:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-policy"]
+  "plugins": ["opencode-policy"]
 }
 ```
 
